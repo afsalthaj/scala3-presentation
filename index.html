@@ -9,10 +9,10 @@
 
   <link rel="stylesheet" href="css/reset.css">
   <link rel="stylesheet" href="css/reveal.css">
-  <link rel="stylesheet" href="css/theme/beige.css">
+  <link rel="stylesheet" href="css/theme/solarized.css">
 
   <!-- Theme used for syntax highlighting of code -->
-  <link rel="stylesheet" href="lib/css/magula.css">
+  <link rel="stylesheet" href="lib/css/atom-one-dark.css">
 
 
   <!-- Printing and PDF exports -->
@@ -32,24 +32,26 @@
       <!-- Heading section -->
       <section data-markdown>
         <textarea data-template>
-            ## FP meets Real world
+            ## Scala3 - Interesting bits & macros.
 	      </textarea>
       </section>
 
       <!-- Slide 2 -->
       <section data-transition="fade-in">
-        <h3>Why FP in Scala made difficult?</h3>
+        <h3>We will cover the following</h3>
         <ul style="font-size:35px">
-          <li>Get hit with a ton of jargon </li>
-          <li>Implicits</li>
-          <li>Type inference</li>
-          <li>Typeclass specialisations</li>
-          <li>Free structures with boiler-plates</li>
-          <li>Many options of solutions</li>
+          <li>Type matching</li>
+          <li>Singleton types</li>
+          <li>Polymorphic Function Types</li>
+          <li>Type-class derivation using scala3 Tuple</li>
+          <li>Reimplementing some scala3 functions</li>
+          <li>Compile time Mirror</li>
+          <li>Type-class derivation revisited</li>
+          <li>Inline, and transparent</li>
+          <li>Macros</li>
         </ul>
-        <p style="font-size:35px">Result is,
-          <span style='color:maroon'> slower </span> development of
-          <span style='color:maroon'> incomplete/FP-in-small </span> solutions
+        <p style="font-size:35px">Content based on my experimentations with Scala3 in
+          <span style='color:maroon'> https://github.com/afsalthaj/scala3-generic </span>
         </p>
       </section>
 
@@ -57,108 +59,145 @@
       <!-- Slide 3 -->
 
       <section data-transition="fade-in">
-        <h3>fundamentals</h3>
+        <h3>Type Matching</h3>
         <ul>
-          <li>Referential transparency</li>
-          <li>Total functions</li>
-          <li>Lawful abstractions</li>
-          <li>Type driven development</li>
+          <li>Compile time; Comput your types</li>
+          <li>Use them to construct your logic at compile time.</li>
+          <li>Use them to make the compiler infer your types.</li>
         </ul>
-        <p> Result is,
-          <strike style='color:maroon'> slower </strike> <span style='color:green'> faster </span> development of
-          <strike style='color:maroon'> FP-in-small </strike> <span style='color:green'> pure FP </span> solutions.
-        </p>
-      </section>
-
-
-      <!-- Slide -->
-
-      <section data-transition="fade-in">
-        <h3 class="fragment grow">Let us write FP for a Bigdata problem </h3>
-        <h6 class="fragment">Handling REAL WORLD requirements </h6>
-        <br>
       </section>
 
       <!-- Slide -->
-
-      <section data-transition="fade-in" id="fragments">
-        <h3>Context</h3>
-        <p style="font-size:30px"> Billions of clickstream events hitting banking app</p>
-        <p style="font-size:30px"> Millions of customer account data</p>
-        <p style="font-size:30px"> Millions of payment datasets</p>
-        <p style="font-size:30px"> Do business analysis and machine learning</p>
-      </section>
-      <section data-transition="fade-in">
-        <h3>Problem</h3>
-        <p style="font-size:30px"> Find attributes of customers from big-data.</p>
-        <p class="fragment" style="font-size:30px"> <span style="color: cadetblue;">Example</span>: total account
-          transactions for each customer in
-          last 3
-          weeks </p>
-        <p class="fragment" style="font-size:30px"> Attributes are <span style="color: cadetblue;">
-            "features" </span></p>
-        <p class="fragment" style="font-size:30px"> A simple interface to quickly add new <span
-            style="color: cadetblue;">features</span>
-          / business logic </p>
-        <p class="fragment" style="font-size:30px"> A thin API to combine them to
-          get a wide-table </p>
-        <p class="fragment" style="font-size:30px"> We further compose to form tens of hundreds of
-          wide-tables
-        </p>
-      </section>
-      <section data-transition="fade-in">
-        <h3>What does that mean for us?</h3>
-        <p class="fragment fade-in-then-semi-out" align="left" style="font-size:30px;color: black;"> Need a thin layer
-          of interface to
-          <span style="font-weight:900;color:red;">declaratively</span>
-          define <span style="font-weight:900;color:red;">clear and concise</span> business logic / features - <span
-            style="font-weight:900;color:red;">uncluttered</span> with
-          <span style="font-weight: 900;color:red;">performance optimisations</span> </p>
-        <p class="fragment fade-in-then-semi-out" align="left" style="font-size:30px;color: black;"> Accompanied by an
-          API that allows you to
-          <span style="font-weight:800;color:red;">compose</span>
-          the logic</p>
-
-        <p class="fragment fade-in-then-semi-out" align="left" style="font-size:30px;"> Declarative, but <span
-            style="font-weight:800;color:red;"> not </span> at the cost of <span style="font-weight:800;color:red;">
-            performance </span>.</p>
-        <p class="fragment fade-in-then-semi-out" align="left" style="font-size:30px"><span
-            style="font-weight:800;color:red;">Optimisations</span>, which is otherwise <span
-            style="font-weight:800;color:red;">complex</span>
-          with handwritten language of data-source.
-        </p>
-        <p class="fragment fade-in-then-semi-out" align="left" style="font-size:30px;color: black;"> It should be
-          <span style="font-weight:800;color:red;">fairly backend agnostic, testable and backed with laws.</span></p>
+      <section data-transition="fade-out">
+        <h3>Type Matching in Action</h3>
+        <pre><code class="hljs scala" style="font-size:22px;" data-trim data-trim data-line-numbers="1-10">
+          // Question:
+          // Define (Option[Int], Option[String], Option[Double]) in terms of `ISD`
+          type ISD = (Int, String, Double)
+        </code></pre>
       </section>
 
-      <section data-transition="fade-in">
-        <h3>But, we don't have a year to make it happen </h3>
-      </section>
-
-      <!--Slide -->
-      <section data-transition="fade-in">
-        <h3>A simple feature definition</h3>
-        <h6> Find out sum of account balance of each customer in last 14 days</h6>
-      </section>
-
+      
       <!-- Slide 18 -->
 
       <section data-transition="fade-out">
-        <h3>A single feature definition is equivalent to</h3>
-        <pre><code class="hljs sql" style="font-size:22px;" data-trim data-trim data-line-numbers="1-10">
-          select
-            customer_id,
-            sum(coalesce(account_balance, 0)) 
-            as "account_balance_0_14d"
-          from 
-            input_table
-          group by customer_id
-          where
-            time < time_stamp() &&
-            time >= minusDays(time_stamp(), 14)
+        <h3>Type Matching in Action</h3>
+        <pre><code class="hljs scala" style="font-size:22px;" data-trim data-trim data-line-numbers="1-10">
+          type TupleMap[T <: Tuple, F[_]] <: Tuple = T match {
+            case EmptyTuple => EmptyTuple
+            case h *: t => F[h] *: TupleMap[t, F]
+          }
         </code></pre>
-        <p>Field <span style="color: cadetblue;"> "time" </span> represents partitions.</p>
       </section>
+
+
+      <!-- Slide -->
+      <section data-transition="fade-out">
+        <h3>Type Matching in Action</h3>
+        <pre><code class="hljs scala" style="font-size:22px;" data-trim>
+          // Answer
+          val result: TupleMap[ISD, Option] = (Some(1), Some("2"), Some("3"))
+          // Same as val result: (Option[Int], Option[Double], Option[String]
+        </code></pre>
+      </section>
+
+      <!-- Slide -->
+      <section data-transition="fade-out">
+        <h3>Type Matching in Action. Hmm...</h3>
+        <pre><code class="hljs scala" style="font-size:22px;" data-trim>
+          // Question: Implement a sequence function such that `result` compiles
+
+          val result: Option[ISD] = 
+            sequence((Some(1), Some("2"), Some("3")))
+          
+          def sequence[T <: Tuple](t: T): ??? = ???
+          // Hint: First define an inverse of `TupleMap`
+        </code></pre>
+      </section>
+
+      <!-- Slide -->
+      <section data-transition="fade-out">
+        <h3>Tuple Inverse Map</h3>
+        <pre><code class="hljs scala" style="font-size:22px;" data-trim>
+          type TupleInverseMap[T, F[_]] <: Tuple = T match {
+            case EmptyTuple => EmptyTuple
+            case F[h] *: t => h *: TupleInverseMap[t, F]
+          }        
+        </code></pre>
+      </section>      
+
+
+      <!-- Slide -->
+      <section data-transition="fade-out">
+        <h3>Watch out for bad-looking code..</h3>
+      </section>
+
+      <!-- Slide -->
+      <section data-transition="fade-out">
+        <h3>Return type is computed</h3>
+        <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-line-numbers="1" data-trim data-noescape>  
+          def unsafeSequence[T <: Tuple](x: T): Option[TupleInverseMap[T, Option]] = {
+            val tupleUnwrapped: Array[Any] = 
+              x.productIterator.collect { case Some(v) => v }.toArray
+
+            if x.productArity == tupleUnwrapped.length then 
+              Some(Tuple.fromArray(tupleUnwrapped).asInstanceOf[TupleInverseMap[T, Option]]) 
+            else None
+          }
+  
+       </code></pre>
+      </section>
+
+      <!-- Slide -->
+      <section data-transition="fade-out">
+        <h3>Return type is computed</h3>
+        <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-trim data-noescape>  
+          def unsafeSequence[T <: Tuple](x: T): Option[TupleInverseMap[T, Option]] =
+            val tupleUnwrapped: Array[Any] = 
+              x.productIterator.collect { case Some(v) => v }.toArray
+
+            if x.productArity == tupleUnwrapped.length then 
+              Some(Tuple.fromArray(tupleUnwrapped)
+                .asInstanceOf[TupleInverseMap[T, Option]]) 
+            else None
+
+          // Demo
+  
+       </code></pre>
+      </section>
+
+      <!-- Slide -->
+        <section data-transition="fade-out">
+          <h3>We will live with it for now </h3>
+        </section>
+
+      <!-- Slide -->
+      <section data-transition="fade-out">
+        <h3>Return type is computed</h3>
+        <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-trim data-noescape>
+          type ISD = (Int, String, Double) 
+
+          val result: Option[ISD] =
+            unsafeSequence((Some(1), Some("afsal"), Some("2.0")))
+       </code></pre>
+      </section>
+
+      <!-- Slide-->
+      <section data-transition="fade-out">
+        <h3>Singleton type (in both scala2 & scala3)</h3>
+      </section>
+
+      <!-- Slide -->
+      <section data-transition="fade-out">
+        <h3>Singelton types</h3>
+        <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-trim data-noescape>
+          val one: 1 = 1
+          val two: 2 = 2
+          val int: Int = one
+          // Used in various techniques such as LabelledGeneric.
+       </code></pre>
+      </section>
+
 
       <!-- Slide-->
       <section data-transition="fade-in">
@@ -175,7 +214,6 @@
             time < time_stamp() &&
             time >= minusDays(time_stamp(), 14)
            </code></pre>
-
       </section>
 
       <!--Slide -->
