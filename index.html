@@ -189,7 +189,7 @@
 
       <!-- Slide -->
       <section data-transition="fade-out">
-        <h3>Singelton types</h3>
+        <h3>Singleton types</h3>
         <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-trim data-noescape>
           val one: 1 = 1
           val two: 2 = 2
@@ -198,7 +198,263 @@
        </code></pre>
       </section>
 
+      <!-- Slide -->
+      <section data-transition="fade-out">
+        <h3>Singleton types</h3>
+        <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-trim data-noescape>
+          import scala.compiletime.S
 
+          val one: S[0] = 1
+       </code></pre>
+      </section>      
+
+        <!-- Slide -->
+        <section data-transition="fade-out">
+          <h3>Implement Bound Using Singleton + Type matching</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-trim data-noescape>
+            Given compiletime.S, and singleton type,
+            Define a type `Bound[Min, Max]` such that 
+            val x: Bound[1, 10] = 11 
+            fails to compile
+         </code></pre>
+        </section>    
+
+        <!-- Slide -->
+        <section data-transition="fade-out">
+          <h3>Implement Bound Using Singleton + Type matching</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-trim data-noescape>
+            type Bound[Min <: Int, Max <: Int] <: Int = Max match {
+              case Min => Min
+              case S[m] => Max | Bound[Min, m]
+            }
+            // Demo
+         </code></pre>
+        </section> 
+                <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>So far we covered</h3>
+          <pre><code class=" hljs sql" style="font-size:25px; align-items: center;"  data-line-numbers="3" data-trim data-noescape>
+            Type matching
+            Singleton types
+            Polymorphic Function Types
+            Type-class derivation using scala3 Tuple
+            Reimplementing some scala3 functions
+            Compile time Mirror
+            Type-class derivation revisited
+            Inline, and transparent
+            Macros
+         </code></pre>
+        </section>   
+              <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>Polymorphic function types</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+  // A method
+  def identity[A](a: A): A = a
+            
+  val identity: [A] => (A => A) = ??? // ~ Compile Error in Scala2
+         </code></pre>
+        </section>
+
+                <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>Rank-n in Scala 2</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+            
+  // Scala2 fails to compile
+   def rank[A, B, C](a: (B, C), id: A => A): (B, C)) = 
+      (id(a._1), id(a._2))
+         </code></pre>
+        </section>
+
+
+
+                <!-- Slide -->
+
+                <section data-transition="fade-out">
+                  <h3>Rank n in Scala3</h3>
+                  <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-trim>
+        
+          // A scala3 solution
+          def rank[B, C](a: (B, C), id: [A] => A => A): (B, C) = 
+            (id(a._1), id(a._2))
+                 </code></pre>
+                </section>
+                
+                <!-- Slide -->
+
+                <section data-transition="fade-out">
+                  <h3>Question: Make it compile in Scala2</h3>
+                  <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-trim>                  
+                    // Scala2 fails to compile the following
+                     def rank[A, B, C](a: (B, C), id: A => A): (B, C)) = 
+                       (id(a._1), id(a._2))
+                   </code></pre>
+
+                </section>                     
+        
+                <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>Answer: Make it compile in Scala2</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+  // A scala2 solution
+  trait IdentityFn {
+    def apply[A](value: A): A = value
+  }
+
+  def rank[B, C](a: (B, C), identityFn: IdentityFn): (B, C) = 
+    (identityFn(a._1), identityFn(a._2))
+         </code></pre>
+        </section>
+
+                <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>Answer: Make it compile in Scala2</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+  // A scala2 solution
+  trait ~>[F[_], G[_]] {
+    def apply[A](value: F[A]): G[A]
+  }
+
+  def rank[B, C](a: (B, C), identityFn: Id ~> Id): (B, C) = 
+    (identityFn(a._1), identityFn(a._2))
+         </code></pre>
+        </section>
+
+                <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>With that, Implement Tuple map in Scala3</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+
+// pseudo code            
+val tuple = (1, 2)
+
+val tuple2: (Option[Int], Option[Int]) = tuple.map(???)
+
+         </code></pre>
+        </section>
+
+                <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>Extension</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+
+  extension[A <: Tuple](a: A) {
+    def map[F[_]](f: [A] => A => F[A]): TupleMap[A, F] = 
+      TupleOps.map[A, F](a, f)
+  }
+
+         </code></pre>
+        </section>
+
+                <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>Back to TupleMap :)</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+object Tuple:
+  def mapNonInferred[A <: Tuple, F[_]](
+    a: A, f: [A] => A => F[A]
+  ): TupleMap[A, F] = 
+    Tuple.fromArray(a.productIterator.map(a => f(a)).toArray)
+      .asInstanceOf[TupleMap[A, F]] // :(
+         </code></pre>
+        </section>
+   
+                        <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>So far we covered</h3>
+          <pre><code class=" hljs sql" style="font-size:25px; align-items: center;"  data-line-numbers="4" data-trim data-noescape>
+            Type matching
+            Singleton types
+            Polymorphic Function Types
+            Type-class derivation using scala3 Tuple
+            Reimplementing some scala3 functions
+            Compile time Mirror
+            Type-class derivation revisited
+            Inline, and transparent
+            Macros
+         </code></pre>
+        </section>         
+
+
+                <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>Generic</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+// Derive B and then work with B (derive instances for B, which is Tuple)           
+trait Generic[A, B] {
+  def to(a: A): B
+  def from(a: B): A
+}            
+         </code></pre>
+        </section>
+
+                <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>Generic</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+  // We will see Mirror later. But there exist implicit proof for Mirror[A]      
+  given genericOfA[A <: Product](
+    using P: Mirror.ProductOf[A]
+ ): Generic[A, P.MirroredElemTypes] = 
+    new Generic[A] {
+      def to(a: A): P.MirroredElemTypes = Tuple.fromProductTyped(a)
+      def from(a: P.MirroredElemTypes) = P.fromProduct(a)
+    }
+  }            
+         </code></pre>
+        </section>
+
+                <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>Derive for EmptyTuple Equal</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+  given Equal[EmptyTuple] with {
+    override def eq(a: EmptyTuple, b: EmptyTuple): Boolean =
+      true
+  }                      
+         </code></pre>
+        </section>
+
+                <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>Derive for NonEmptyTuple</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+  given eqNonEmptyTuple[A, T <: Tuple](
+    using A1: Equal[A], 
+    A2: Equal[T]
+  ): Equal[A *: T] =
+    (a: A *: T, b: A *: T) = (a, b) match {
+      case (h *: t, h1 *: t1) =>
+        Equal[A].eq(h, h1) && Equal[T].eq(t, t1)
+    }                  
+         </code></pre>
+        </section>        
+                <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>But..</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+// That representation works, until someone "only" needs `B`
+final case class Abc(a: String, b: Int)
+
+Generic[A, ???].to(Abc("a", 1))        
+         </code></pre>
+        </section>
+        
       <!-- Slide-->
       <section data-transition="fade-in">
         <h3>We could reduce it down to</h3>
