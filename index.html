@@ -442,7 +442,20 @@ trait Generic[A, B] {
         Equal[A].eq(h, h1) && Equal[T].eq(t, t1)
     }                  
          </code></pre>
-        </section>        
+        </section>
+                 <!-- Slide -->
+      
+        <section data-transition="fade-out">
+          <h3>Derive for A</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+  given eqA[A, Repr <: Tuple](
+    using G: Generic[A, Repr], 
+    ReprEq: Equal[Repr]
+ ): Equal[A] = 
+    (a: A, b: A) = ReprEq.eq(G.to(a), G.to(b))
+         </code></pre>
+        </section>
+        
                 <!-- Slide -->
 
         <section data-transition="fade-out">
@@ -451,9 +464,27 @@ trait Generic[A, B] {
 // That representation works, until someone "only" needs `B`
 final case class Abc(a: String, b: Int)
 
-Generic[A, ???].to(Abc("a", 1))        
+Equal[Abc].equal(Abc("a", 1), Abc("b", 2)) // Works
+
+// But ?
+summon[Generic[A, ???]].to(Abc("a", 1))        
          </code></pre>
         </section>
+
+                <!-- Slide -->
+
+        <section data-transition="fade-out">
+          <h3>Fix Generic</h3>
+          <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+// That representation works, until someone "only" needs `B`
+final case class Abc(a: String, b: Int)
+
+Equal[Abc].equal(Abc("a", 1), Abc("b", 2)) // Works
+
+// But ?
+Generic[A, ???].to(Abc("a", 1))        
+         </code></pre>
+        </section>        
         
       <!-- Slide-->
       <section data-transition="fade-in">
