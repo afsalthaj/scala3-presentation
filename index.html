@@ -476,13 +476,20 @@ summon[Generic[A, ???]].to(Abc("a", 1))
         <section data-transition="fade-out">
           <h3>Fix Generic</h3>
           <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
-// That representation works, until someone "only" needs `B`
-final case class Abc(a: String, b: Int)
+trait Generic[A] {
+  type Repr
+  def to(a: A): Repr
+  def from(a: Repr): A
+}
 
-Equal[Abc].equal(Abc("a", 1), Abc("b", 2)) // Works
+object Generic {
+  type Aux[A, B] = Generic[A] { type Repr = B }
+}
 
-// But ?
-Generic[A, ???].to(Abc("a", 1))        
+// Such that
+given forA[A](using P: ProductOf[A]): Generic.Aux[A, P.MirroredElemTypes] = new Generic[A] {..}
+summon[Generic[A]].to(Abc("a", 1)) // works
+
          </code></pre>
         </section>        
         
