@@ -32,7 +32,8 @@
       <!-- Heading section -->
       <section data-markdown>
         <textarea data-template>
-            ## Scala3 - a quick overview + bit of macros
+            ## Scala3 - 
+            ## a few exps & a bit of macros
 	      </textarea>
       </section>
 
@@ -1089,14 +1090,15 @@ type CoproductGeneric[T] {
   <section data-transition="fade-out">
     <h3>Easy to break phase inconsistency principle</h3>
     <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
-       We cannot quote an expr
-       We an only splice an expr
+       // We cannot quote an expr
+       // We can only splice an expr
        quote(splice(expr)) = expr
        splice(quote(value)) = value
        splice(expr) != expr.value // or expr.valueOrError
-       Expr(value) != '{value}.
-       Expr(value) is simply lifting a value to an Expr at compile time
-       Expr(value) helps avoid phase inconsistency errors
+       // lifting a compile time computed value to an Expr
+       // Ithelps avoid phase inconsistency errors
+       Expr(value)
+       Expr(value) != '{value} 
    </code></pre>
   </section>
 
