@@ -974,11 +974,23 @@ type CoproductGeneric[T] {
       // scala compiler can optimise it to just
       inline def log(line: => String) = 
        println(line)
-
-     // Equivalent to println(line)  
   
    </code></pre>
   </section>
+
+  <section data-transition="fade-out">
+    <h3>Inline it further</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+      // If not, inline invoking is through a generated `getter` in parent object
+
+      inline val LoggingEnabled = true
+
+      // scala compiler can optimise it to just
+       println(line)
+  
+   </code></pre>
+  </section>
+
 
 
 
@@ -995,6 +1007,106 @@ type CoproductGeneric[T] {
    </code></pre>
   </section>
 
+
+  <section data-transition="fade-out">
+    <h3>Transparent Inline</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+      class Natural(v: Int) {
+        override def toString: String = v.toString
+      }
+      
+      object Natural:
+         transparent inline def apply(v: Int): Option[Natural]  = 
+           if (v > 0) Some(new Natural(v)) else None
+      end Natural
+  
+   </code></pre>
+  </section>
+
+  <section data-transition="fade-out">
+    <h3>So far we covered</h3>
+    <pre><code class=" hljs sql" style="font-size:25px; align-items: center;"  data-line-numbers="9" data-trim data-noescape>
+      Type matching
+      Singleton types
+      Polymorphic Function Types
+      Type-class derivation using scala3 Tuple
+      Reimplementing some scala3 functions
+      Compile time Mirror
+      Type-class derivation revisited
+      Inline, and transparent
+      Macros
+   </code></pre>
+  </section>
+  
+  <section data-transition="fade-out">
+    <h3>Macros - My thoughts</h3>
+    <p>Scala2 is so powerful - create code that has non-sensible types</p>
+    <p>Scala3 macros is better typed - the meaning of that code doesn't change through macros</p>
+    <p>These limitations are sensible to a great extent</p>
+    <p>API looks less scary</p>
+  </section>
+
+  <section data-transition="fade-out">
+    <h3>Inline + Transparent, and where is Macros?</h3>
+    Macro is a fusion of `inline`, and..
+  </section>
+
+  <section data-transition="fade-out">
+    <h3>And..</h3>
+    <p>Quoting and Splicing</p>
+    
+    <p>The new syntax for quoting is ${} </p>
+    <p>The syntax for splicing is $ ==> Reverse of Splice</p>
+  </section>
+
+
+  <section data-transition="fade-out">
+    <h3>And..</h3>
+    <p>Quoting and Splicing</p>
+    
+    <p>The new syntax for quoting is ${} </p>
+    <p>The syntax for splicing is $ ==> Reverse of Splice</p>
+  </section>
+
+
+  <section data-transition="fade-out">
+    <h3>'{} and $</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+      import scala.quotes._
+
+      val boolean: Boolean = true // a model of a scala expression that produces a boolean variable
+
+      val expr: Expr[Boolean] = '{ boolean } 
+      val a: Boolean = ${expr}
+      
+      // Expr[Boolean] exists at compile time
+
+      // As a user I see less Expr[Any] unlike Scala2
+
+   </code></pre>
+  </section>
+
+  <section data-transition="fade-out">
+    <h3>Easy to break phase inconsistency principle</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+       We cannot quote an expr
+       We an only splice an expr
+       quote(splice(expr)) = expr
+       splice(quote(value)) = value
+       splice(expr) != expr.value // or expr.valueOrError
+       Expr(value) != '{value}.
+       Expr(value) is simply lifting a value to an Expr at compile time
+       Expr(value) helps avoid phase inconsistency errors
+   </code></pre>
+  </section>
+
+
+  <section data-transition="fade-out">
+    <h3>Demo</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+      ...
+   </code></pre>
+  </section>
 
       <section data-transition="fade-in">
         <h3>Thank you all</h3>
