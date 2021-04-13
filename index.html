@@ -77,6 +77,19 @@
         </code></pre>
       </section>
 
+
+      <!-- Slide -->
+      <section data-transition="fade-out">
+        <h3>Type Matching in Action</h3>
+        <pre><code class="hljs scala" style="font-size:22px;" data-trim data-trim data-line-numbers="1-10">
+          type ISD[F[_]] = (F[Int], F[String], F[Double])
+          type ISDId = ISD[Id]
+          type ISDOpt = ISD[Option]
+          type TupleOpt = ???[Option]
+
+        </code></pre>
+      </section>
+
       
       <!-- Slide 18 -->
 
@@ -486,1241 +499,502 @@ object Generic {
   type Aux[A, B] = Generic[A] { type Repr = B }
 }
 
-// Such that
+// Use Generic.Aux[A, B] where type info need to be propagated
 given forA[A](using P: ProductOf[A]): Generic.Aux[A, P.MirroredElemTypes] = new Generic[A] {..}
-summon[Generic[A]].to(Abc("a", 1)) // works
+summon[Generic[A]].to(Abc("a", 1)) // ("a", 1) : (String, Int)
 
          </code></pre>
         </section>        
         
-      <!-- Slide-->
-      <section data-transition="fade-in">
-        <h3>We could reduce it down to</h3>
-        <pre><code class="hljs sql" style="font-size:22px;" data-trim data-line-numbers="3,4,6,10">
-          select
-            customer_id,
-            sum(coalesce(account_balance, 0)) 
-            as "account_balance_0_14d"
-          from 
-            input_table
-          group by customer_id
-          where
-            time < time_stamp() &&
-            time >= minusDays(time_stamp(), 14)
-           </code></pre>
-      </section>
-
-      <!--Slide -->
-      <section data-transition="fade-out">
-        <h3>In short</h3>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-line-numbers="1-10">
-          ...
-
-          sum(coalesce(account_balance, 0)) 
-          as "account_balance_0_14d"
-          from input_table of 0-14 days
-
-          ...
-
-       </code></pre>
-
-      </section>
-
-      <!--Slide -->
-      <section data-transition="fade-out">
-        <h3>(Minor) Fix feature name</h3>
-        <pre><code class="hljs scala"  style="font-size:25px;" data-trim data-line-numbers="4">
-                  ...
-        
-                  sum(coalesce(account_balance, 0)) 
-                  as "account_balance_0_14d"
-                  from input_table of 0-14 days
-        
-                  ...
-               </code></pre>
-
-      </section>
-
-      <!--Slide -->
-      <section data-transition="fade-out">
-        <h3>(Minor) Fix feature name</h3>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-line-numbers="4">
-                        ...
-              
-                        sum(coalesce(account_balance, 0)) 
-                        as "account_balance"
-                        from input_table of 0-14 days
-              
-                        ...
-                     </code></pre>
-
-      </section>
-
-      <!-- Slide -->
-      <section data-transition="fade-out">
-        <h3>Let's express this in Scala</h3>
-        <pre><code class="hljs scala" style="font-size:28px;">
-    final case class FeatureDef[D, Expr](
-      inp: Input[D], 
-      op: Expr, 
-      name: String, 
-      partition: Option[TimeWindow]
-    )
-        </code></pre>
-
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Input</h3>
-        <pre><code class="hljs scala" style="font-size:22px;width: 1200px;" data-trim>
-            
-   sealed trait Input[D] { self =>     
-     def orElse(input: Input[D]): Input[D] =
-       Input.OrElse(self, input)
-     }
-
-    object Input {
-      final case class Constant[D](value: D) extends Input[D]
-      final case class Directory[D](input: String) extends Input[D]
-
-      def dir[D](name: String): Input[D] = Directory(name)
-      def const[D](input: Input[D]): Input[D] = Constant(input)
-    }   
-          </code></pre>
-
-      </section>
-
-      <!-- Slide -->
-      <section data-transition="fade-out">
-        <h3>Example of a FeatureDef</h3>
-        <pre><code class="hljs scala" style="font-size:28px;">
-    FeatureDef(
-      dir("input_table"),
-      sum(coalesce(account_balance, 0)) 
-      "account_balance"
-      0 ~ 14 days
-    )
+  <!-- Slide -->
+        <section data-transition="fade-out">
+          <h3>So far we covered</h3>
+          <pre><code class=" hljs sql" style="font-size:25px; align-items: center;"  data-line-numbers="5" data-trim data-noescape>
+            Type matching
+            Singleton types
+            Polymorphic Function Types
+            Type-class derivation using scala3 Tuple
+            Reimplementing some scala3 functions
+            Compile time Mirror
+            Type-class derivation revisited
+            Inline, and transparent
+            Macros
          </code></pre>
-      </section>
+        </section>    
+             
+
+  <!-- Slide 5 -->
+  <section data-transition="fade-out">
+    <h3>Implement sequence</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+// Reimplement sequence, but don't use asInstanceOf, yet allow scala to infer types.
+// Hint:
+def sequence[A](a: F[G[A]]): G[F[A]] = 
+  a traverse identity
+
+   </code></pre>
+  </section> 
+
+  <!-- Slide 5 -->
+  <section data-transition="fade-out">
+    <h3>Implement sequence</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+// Reimplement sequence, but don't use asInstanceOf
+def sequence[A](a: TupleMap[A, F]): F[TupleInverseMap[TupleMap[A, F], F]] = 
+  a traverse identity
+
+   </code></pre>
+  </section> 
+  
+  <!--Slide-->
+  <section data-transition="fade-out">
+    <h3>Implement Map</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+      // Implement being able to map a tuple. Try not to copy paste shapeless.
+      trait MapperF[F[_], A] {
+        type Out <: Tuple
+        def apply(a: A): F[Out]
+      } // type Aux[A, B] = Mapper[A] { type Out = B }
+
+      trait Case[A] {
+        type Out
+        def apply(a: A): Out
+      } // type Aux[A, B] = Case[A] { type Out = B }
+
+   </code></pre>
+  </section>
+  
+  <!--Slide-->
+  <section data-transition="fade-out">
+    <h3>Instance for Mapper for all tuple</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+ given emptyMap[F[_]](
+   using M: Applicative[F]
+ ): MapperF.Aux[F, EmptyTuple, EmptyTuple] =
+   _ => M.pure(EmptyTuple)
+
+   </code></pre>
+  </section> 
+
+  <!--Slide-->
+  <section data-transition="fade-out">
+    <h3>Instance for Mapper for all tuple</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-line-numbers="2">
+  given  nonEmptyTuple[F[_], A, B, Tail <: Tuple](
+    using C: Case.Aux[A, F[B]], 
+    M: MapperF[F, Tail]
+  )(using MF: Monad[F]): MapperF.Aux[F, A *: Tail, B *: M.Out] = 
+    new MapperF[F, A *: Tail] {
+      type Out = B *: M.Out
+      def apply(a: A *: Tail): F[Out] =
+        MF.flatMap(C.apply(a.head))(bb => MF.map(M.apply(a.tail))(mOut => bb *: mOut))
+   }
+
+   </code></pre>
+  </section>   
+
+  <!--Slide-->
+  <section data-transition="fade-out">
+    <h3>Instance for Mapper for all tuple</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-line-numbers="3">
+  given  nonEmptyTuple[F[_], A, B, Tail <: Tuple](
+    using C: Case.Aux[A, F[B]], 
+    M: MapperF[F, Tail]
+  )(using MF: Monad[F]): MapperF.Aux[F, A *: Tail, B *: M.Out] = 
+    new MapperF[F, A *: Tail] {
+      type Out = B *: M.Out
+      def apply(a: A *: Tail): F[Out] =
+        MF.flatMap(C.apply(a.head))(bb => MF.map(M.apply(a.tail))(mOut => bb *: mOut))
+   }
+
+   </code></pre>
+  </section>
+  
+  <!--Slide-->
+  <section data-transition="fade-out">
+    <h3>Instance for Mapper for all tuple</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-line-numbers="4">
+  given  nonEmptyTuple[F[_], A, B, Tail <: Tuple](
+    using C: Case.Aux[A, F[B]], 
+    M: MapperF[F, Tail]
+  )(using MF: Monad[F]): MapperF.Aux[F, A *: Tail, B *: M.Out] = 
+    new MapperF[F, A *: Tail] {
+      type Out = B *: M.Out
+      def apply(a: A *: Tail): F[Out] =
+        MF.flatMap(C.apply(a.head))(bb => MF.map(M.apply(a.tail))(mOut => bb *: mOut))
+   }
+
+   </code></pre>
+  </section> 
+  
+  <!--Slide-->
+  <section data-transition="fade-out">
+    <h3>Instance for Mapper for all tuple</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-line-numbers="5">
+  given  nonEmptyTuple[F[_], A, B, Tail <: Tuple](
+    using C: Case.Aux[A, F[B]], 
+    M: MapperF[F, Tail]
+  )(using MF: Monad[F]): MapperF.Aux[F, A *: Tail, B *: M.Out] = 
+    new MapperF[F, A *: Tail] {
+      type Out = B *: M.Out
+      def apply(a: A *: Tail): F[Out] =
+        MF.flatMap(C.apply(a.head))(bb => MF.map(M.apply(a.tail))(mOut => bb *: mOut))
+   }
+
+   </code></pre>
+  </section>
+  
+  
+      <!--Slide-->
+  <section data-transition="fade-out">
+    <h3>Instance for Mapper for all tuple</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-line-numbers="6,7,8,9,10,11">
+  given  nonEmptyTuple[F[_], A, B, Tail <: Tuple](
+    using C: Case.Aux[A, F[B]], 
+    M: MapperF[F, Tail]
+  )(using MF: Monad[F]): MapperF.Aux[F, A *: Tail, B *: M.Out] = 
+    new MapperF[F, A *: Tail] {
+      type Out = B *: M.Out
+      def apply(a: A *: Tail): F[Out] =
+        MF.flatMap(C.apply(a.head))(bb => MF.map(M.apply(a.tail))(mOut => bb *: mOut))
+   }
+
+   </code></pre>
+  </section> 
+
 
       <!--Slide-->
-      <section data-transition="fade-out">
-        <h3>With a complex input</h3>
-        <pre><code class="hljs scala"  style="font-size:28px;" data-trim data-line-numbers="2,3">
-            FeatureDef(
-              dir("input_table").join(dir("another_table"))
-                .orElse(const("myTestData")),
-              sum(coalesce(account_balance, 0)),
-              "account_balance"
-              0 ~ 14 days
-            )
-           </code></pre>
-      </section>
-
-      <!-- Slide 7 -->
-
-      <section data-transition="fade-in">
-        <h3>And we can have a list of them</h3>
-        <pre><code class="hljs scala" style="font-size:28px;" data-trim data-line-numbers="1-10" data-noescape>
-          List(
-            FeatureDef(dir("account"), sum(acc_bal)..),
-            FeatureDef(dir("payments"), sum(debit).when(country == 'aus')..),
-            FeatureDef(dir("account").join(dir("payments")), max(acc_bal)..),
-            FeatureDef(const(data), min(acc_bal)..),
-          )
-
-         </code></pre>
-      </section>
-
-      <!-- Slide 5 -->
-
-      <section data-transition="fade-in">
-        <h3>And we need to compose them</h3>
-        <h6>To begin with</h6>
-        <pre><code class=" hljs scala" style="font-size:24px;" data-trim data-line-numbers="1-100">
-            def start(featureDef: FeatureDef[D]): FeatureGen[FeatureRes[D]] = ???
-  
-            final case class FeatureRes[D](result: D, metadata: Metadata) 
-            final case class Metadata(list: List[FeatureDetails])
-            final case class FeatureDetails(name: FeatureName, sources: Vector[String])
-            </code></pre>
-      </section>
-
-      <!-- Slide 8 -->
-
-      <section data-transition="fade-in">
-        <h3>The structure</h3>
-        <pre><code class="hljs scala" style="font-size:22px;width: 1200px;" data-line-numbers="1-10"  data-trim>
-                  sealed trait FeatureGen[D, E, A] { self =>   
-                    def <*>[B](feature2: FeatureGen[D, E, B]): FeatureGen[D, E, (A, B)] =
-                      FeatureGen.Zip(self, feature2)
-    
-                    def map2[B, C](that: FeatureGen[D, E, B])(f: (A, B) => C): FeatureGen[D, E, C] =
-                      (self <*> that).map({ case (a, b) => f(a, b) })
-                  
-                    def map[B](f: A => B): FeatureGen[D, E, B] =
-                      FeatureGen.Map(self, f)
-                  }
-                  </code></pre>
-        </code></pre>
-      </section>
-      <section data-transition="fade-in">
-        <pre><code class="hljs scala" style="font-size:50px;" data-noescape data-trim>
-            <p style="font-size:26px;text-align:center;"><span style="color: cadetblue;">D</span> is data</p>
-            <p style="font-size:26px;text-align:center;"><span style="color: cadetblue;">E</span> is Expression that can operate on data</p>
-            <p style="font-size:26px;text-align:center;"><span style="color: cadetblue;">A</span> is the result of the computation.</p>
-          </code></pre>
-      </section>
-      <section data-transition="fade-in">
-        <h3> Representation </h3>
-
-        <pre><code class="hljs scala" style="font-size:23px;">
-  final case class Pure[A](value: A) extends FeatureGen[Nothing, Nothing, A]
-  
-  final case class Zip[D, E, A, B](f: FeatureGen[D, E, A], g: FeatureGen[D, E, B]) 
-    extends FeatureGen[D, Expr, (A, B)]
-
-  final case class Map[D, E, A, B](feature1: FeatureGen[D, E, A], f: A => B) 
-    extends FeatureGen[D, E, B]
-
-  final case class CreateFeatures[D, E](input: FeatureDef[D, E]) 
-    extends FeatureGen[D, E, FeatureRes[D]]
-
-  final case class JoinFeatures[D, E](
-    f1: FeatureGen[D, E, FeatureRes[D]], 
-    f2: FeatureGen[D, E, FeatureRes[D]]
-  ) extends FeatureGen[D, E, FeatureRes[D]]
-            </code></pre>
-      </section>
-      <section data-transition="fade-in">
-        <h3>Our helper functions</h3>
-        <pre><code class="hljs scala" style="font-size:23px;" data-trim>
-
-          def start[D, Expr, A](defn: FeatureDef[D, Expr]) =
-            CreateFeatures(defn)
-
-          def pure[D, Expr, A](value: => A) =
-            FeatureGen.Pure(value)
-
-          def fail[A](message: String) =
-            FeatureGen.Fail(message)
-
-          def join[D, Expr,](
-            f1: FeatureGen[D, Expr, FeatureRes[D]], 
-            f2: FeatureGen[D, Expr, FeatureRes[D]]
-          ) = FeatureGen.Join(f1, f2)
-
-          def combineAll[D, Expr. A](computations: List[FeatureGen[D, Expr, FeatureRes[D]]]) = 
-            computations.reduce(a, b => join(a, b))          
-        </code></pre>
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Sequence / Traverse </h3>
-        <pre><code class="hljs scala" style="font-size:23px;">
- def sequence[D, E, A](list: List[FeatureGen[D, E, A]]): FeatureGen[D, E, List[A]] = 
-   list.foldLeft(pure[List[A]](Nil))((aa, bb) => bb.map2(aa)(_ :: _))
-
- def collectAll(list: List[FeatureGen[D, E, A]]): FeatureGen[D, E, List[A]] = 
-   sequence(list)  
-            </code></pre>
-      </section>
-
-      <!--Sections grouped together; Start-->
-      <section data-transition="fade-out">
-        <h3>Composing....</h3>
-        <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-line-numbers="1000" data-trim data-noescape>  
-              val aJob: FeatureGen[FeatureResult[D]] = 
-                start(defn)
-
-              val joined = job1.join(job2).join(job3)
-
-              val result = FeatureGen.collectAll(job1.join(job2).join(job3), job4, job5)    
-              
-              val anotherResult = FeatureGen.combineAll(List(job6, job7, job8, jb9))
-
-              anotherResult.map(_.metadata.size)
-
-              // and so forth
-
-              </code></pre>
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Composing....</h3>
-        <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-line-numbers="1,2" data-trim data-noescape>  
-                val aJob: FeatureGen[FeatureResult[D]] = 
-                  start(defn)
-                
-                val joined = job1.join(job2).join(job3)
-                
-                val result = FeatureGen.collectAll(job1.join(job2).join(job3), job4, job5)    
-                
-                val anotherResult = FeatureGen.combineAll(List(job6, job7, job8, jb9))
-  
-                anotherResult.map(_.metadata.size)
-  
-                // and so forth
-  
-                </code></pre>
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Composing....</h3>
-        <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-line-numbers="4" data-trim data-noescape>  
-                  val aJob: FeatureGen[FeatureResult[D]] = 
-                    start(defn)
-
-                  val joined = job1.join(job2).join(job3)
-
-                  val result = FeatureGen.collectAll(job1.join(job2).join(job3), job4, job5)    
-                  
-                  val anotherResult = FeatureGen.combineAll(List(job6, job7, job8, jb9))
-    
-                  anotherResult.map(_.metadata.size)
-    
-                  // and so forth
-    
-                  </code></pre>
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Composing....</h3>
-        <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-line-numbers="6" data-trim data-noescape>  
-                    val aJob: FeatureGen[FeatureResult[D]] = 
-                      start(defn)
-
-                    val joined = job1.join(job2).join(job3)
-      
-                    val result = FeatureGen.collectAll(job1.join(job2).join(job3), job4, job5)    
-                    
-                    val anotherResult = FeatureGen.combineAll(List(job6, job7, job8, jb9))
-      
-                    anotherResult.map(_.metadata.size)
-      
-                    // and so forth
-      
-                    </code></pre>
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Composing....</h3>
-        <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-line-numbers="8" data-trim data-noescape>  
-                      val aJob: FeatureGen[FeatureResult[D]] = 
-                        start(defn)
-
-                      val joined = job1.join(job2).join(job3)
-        
-                      val result = FeatureGen.collectAll(job1.join(job2).join(job3), job4, job5)    
-                      
-                      val anotherResult = FeatureGen.combineAll(List(job6, job7, job8, jb9))
-        
-                      anotherResult.map(_.metadata.size)
-        
-                      // and so forth
-        
-                      </code></pre>
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Composing....</h3>
-        <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-line-numbers="10, 12" data-trim data-noescape>  
-                        val aJob: FeatureGen[FeatureResult[D]] = 
-                          start(defn)
-  
-                        val joined = job1.join(job2).join(job3)
-          
-                        val result = FeatureGen.collectAll(job1.join(job2).join(job3), job4, job5)    
-                        
-                        val anotherResult = FeatureGen.combineAll(List(job6, job7, job8, jb9))
-          
-                        anotherResult.map(_.metadata.size)
-          
-                        // and so forth
-          
-                        </code></pre>
-      </section>
-
-      <!--Sections grouped together; Start-->
-
-      <!-- Slide 5 -->
-
-      <section data-transition="fade-in">
-        <h3>Run <span style="color: red;">FeatureGen</span></h3>
-        <p style="font-size:30px;color: black;"> A single implementation that runs FeatureGen to a target
-          effect. </p>
-
-        <p style="font-size:30px;color: black;"> In other words, we reduce the number of times of recursions. </p>
-
-        <p style="font-size:30px;color: black;"> We prefer to have an effect system that's maximum
-          expressive in its types. </p>
-      </section>
-
-      <section data-transition="fade-in" data-background="images/ZIO.png" data-state="dimbg">
-        <h3>Going forward, We are using ZIO</h3>
-        <ul>
-          <li>No implicit requirements</li>
-          <li>Relatively easy concurrency operations</li>
-          <li>Expressive types with error channels</li>
-          <li>Great type inference</li>
-        </ul>
-      </section>
-
-      <!-- Slide 6 -->
-      <section data-transition="fade-in" data-background="images/ZIO.png" data-state="dimbg">
-        <h3> The mental model of ZIO </h3>
-        <div>
-          <pre><code class="hljs scala" style="font-size:30px; align-items: center;" data-trim>
-                  ...
-  
-                    ZIO[R, E, A]
-                    // ZIO[Environment, Error, Result]
-                  ...
-             </code></pre>
-
-        </div>
-        <div>
-          <pre><code class="hljs scala"  style="font-size:30px; align-items: center;" data-trim>
-                  ...
-  
-                    R => Either[E, A]
-  
-                    // Given an input R,
-                    // the computation either returns an Error or a result A.
-                  ...
-              </code></pre>
-        </div>
-      </section>
-
-      <section data-transition="fade-in">
-        <h3>Convert FeatureGen to ZIO</h3>
-        <pre><code class=" hljs scala" style="font-size:27px; align-items: center;"  data-noescape>
-type AnalyticsTask[D, Expr, A] = ZIO[DataService[D, Expr], AppError, A] 
-
-type Impl[D, Expr, A] = FeatureGen[D, Expr, A]) => AnalyticsTask[A]
-
-def run[D, Expr, A]: Impl[D, Expr, A] = ??? 
-
-            </code></pre>
-      </section>
-      <section data-transition="fade-in">
-        <h3>Dataservice</h3>
-        <pre><code class="hljs scala" style="font-size:24px;" data-line-numbers="1-10" data-trim>
-            trait DataService[D, Expr] {
-
-              def get(input: Input[D], partition: Option[TimeWindow]): Task[D]
-
-              def generateFeature(d: D, featureRequest: FeatureDef[D, Expr]): Task[D]
-
-              def join(left: D, right: D): Task[D]
-
-              def projectFeatures(d: D, value: List[Expr]): Task[D]
-            }
-              </code></pre>
-      </section>
-      <section data-transition="fade-in">
-        <h3>With that, Let's write <span style="color: red;">Run</span> </h3>
-        <pre><code class="hljs scala" style="font-size:24px;" data-line-numbers="1-15" data-trim>
-        def run[D, Expr, A]: Impl[D, Expr, A] = 
-          fa =>
-            def apply[A](fa: FeatureGen[D, Expr, A]): AnalyticsTask[A] = {
-              fa match {
-                case Pure(value)      => ZIO.succeed(value)
-                case Zip(pgm1, pgm2)  => apply(pgm1).zip(apply(pgm2))
-                case Map(pgm, f)      => apply(pgm).map(f)
-                case Fail(message)    => ZIO.fail(message)
-                ... // In next slides
-              }
-
-              apply(fa)
-           }
-                </code></pre>
-      </section>
-      <section data-transition="fade-out">
-        <h3>Once off</h3>
-
-        <pre><code class="hljs scala" style="font-size:25px;" data-line-numbers="1000" data-trim>
-          ...
-            case JoinFeatures(f1, f2) =>
-              apply(f1)
-                .zip(apply(f2))
-                .flatMap {
-                  case (r1, r2) =>
-                    ZIO.accessM[DataService[D, Expr]](
-                      r => r.join(r1.value, r2.value)
-                        .map(data => FeatureRes(data, f1.metadata ++ f2.metadata))
-                    )
-                })
-          ...  
-            </code></pre>
-
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Once off</h3>
-
-        <pre><code class="hljs scala" style="font-size:25px;" data-line-numbers="2-4" data-trim>
-            ...
-              case JoinFeatures(f1, f2) =>
-                apply(f1)
-                  .zip(apply(f2))
-                  .flatMap {
-                    case (r1, r2) =>
-                      ZIO.accessM[DataService[D, Expr]](
-                        r => r.join(r1.value, r2.value)
-                          .map(data => FeatureRes(data, f1.metadata ++ f2.metadata)) 
-                      )
-                  })
-            ...  
-              </code></pre>
-
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Once off</h3>
-
-        <pre><code class="hljs scala" style="font-size:25px;" data-line-numbers="5-8" data-trim>
-              ...
-                case JoinFeatures(f1, f2) =>
-                  apply(f1)
-                    .zip(apply(f2))
-                    .flatMap {
-                      case (r1, r2) =>
-                        ZIO.accessM[DataService[D, Expr]](
-                          r => r.join(r1.value, r2.value)
-                            .map(data => FeatureRes(data, f1.metadata ++ f2.metadata))
-                        )
-                    })
-              ...  
-                </code></pre>
-
-      </section>
-
-
-      <section data-transition="fade-out">
-        <h3>Once off</h3>
-
-        <pre><code class="hljs scala" style="font-size:25px;" data-line-numbers="9" data-trim>
-                ...
-                  case JoinFeatures(f1, f2) =>
-                    apply(f1)
-                      .zip(apply(f2))
-                      .flatMap {
-                        case (r1, r2) =>
-                          ZIO.accessM[DataService[D, Expr]](
-                            r => r.join(r1.value, r2.value)
-                              .map(data => FeatureRes(data, f1.metadata ++ f2.metadata))
-                          )
-                      })
-                ...  
-                  </code></pre>
-
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Once off</h3>
-
-        <pre><code class="hljs scala" style="font-size:25px;"  data-trim>
-            case CreateFeatures(fd) =>
-              ZIO.accessM(dataService =>
-                dataService
-                  .generateFeature(fd.input, fd.op, input.partition)
-                  .map(r =>
-                    FeatureRes(r, ...metadata...)) // Accumulating the metadata (details)
-                  )
-              })
-            )
-          </code></pre>
-      </section>
-      <section data-transition="fade-in">
-        <h3>Let's run with <span style="color: red;">Apache Flink</span></h3>
-      </section>
-      <section data-transition="fade-in">
-        <h3>Define the set of features !</h3>
-        <pre><code class="hljs scala" style="font-size:24px;"  data-noescape>
-                 val features =   
-                   List(
-                     FeatureDef(
-                       const(table),
-                       'accountBalance.sum,
-                       "sum_account_balance",
-                       0 ~ 2 weeks
-                     ),
-                     FeatureDef(
-                       const(table),
-                       'accountBalance.max,
-                       "max_account_balance",
-                       0 ~ 2 weeks
-                     ),
-                     FeatureDef(
-                       const(table),
-                       'accountBalance.sum,
-                       "sum_account_balance",
-                       2 ~ 4 weeks
-                     ),
-                     FeatureDef(
-                       const(table),
-                       'accountBalance.max,
-                       "max_account_balance",
-                       2 ~ 4 weeks
-                     ),
-                     FeatureDef(
-                       const(table),
-                       'accountBalance.sum,
-                       "sum_account_balance",
-                       0 ~ 4 weeks
-                     ),
-                     FeatureDef(
-                       const(table),
-                       'accountBalance.max,
-                       "max_account_balance",
-                       0 ~ 4 weeks
-                     )
-            </code></pre>
-      </section>
-      <section data-transition="fade-in">
-        <h3>Let' execute now ! </h3>
-        <pre><code class="hljs scala" style="font-size:26px;">
-
-  val flinkService = new DataService[flink.Table, flink.Expression] { .. }
-
-  val job: FeatureGen[Table, Expression] = 
-    FeatureGen.combineAll(features.map(start))      
-  
-  // (we have) def run[D, Expr]: Impl[D, Expr, A] = ???
-  run(job).provide(flinkService)
-
-            </code></pre>
-      </section>
-      <section data-transition="fade-in">
-        <h3>Execution</h3>
-        <video width="1000" height="600" controls>
-          <source src="images/fully_unoptimised.mov" type="video/mp4">
-        </video>
-      </section>
-
-      <!-- Slide -->
-      <section data-transition="fade-in">
-        <h3> A Simplified version </h3>
-        <img src="images/worst.png" width=960 style="border: none;">
-      </section>
-
-
-      <section data-transition="fade-in">
-        <h3>We hit the first <span style="color: red;">Real World</span> issue.</h3>
-        <p style="font-size:30px;color: black;"> Worst execution plan </p>
-        <p style="font-size:30px;color: black;"> Sequential Outer Joins </p>
-      </section>
-
-      <!--Slide-->
-      <section data-transition="fade-in">
-        <h3> Can our abstraction solve this ?</h3>
-        <pre><code class="hljs scala" style="font-size:19px;"  data-trim>
-              def combineAllEff[D, Expr](list: List[FeatureGen[D, Expr, FeatureRes[D]]]) = {
-                val result = list
-                  .sliding(2, 2)
-                  .toList
-                  .map(r => {
-                    (r.headOption, r.lift(1)) match {
-                      case (Some(a), Some(b)) => a.join(b)
-                      case (Some(a), None)    => a
-                      case (None, Some(a))    => a
-                      case (None, None)       => fail("Empty list")
-                    }
-                  })
-            
-                result match {
-                  case h :: Nil => h
-                  case ll       => combineAllEff(ll)
-                }
-              }
-                </code></pre>
-
-      </section>
-
-      <!--Slide-->
-      <section data-transition="fade-in">
-        <h3>With The Quick Fix On!</h3>
-        <video width="900" height="600" controls>
-          <source src="images/combineAllEffJoin.mov" type="video/mp4">
-        </video>
-      </section>
-
-      <!-- Slide -->
-      <section data-transition="fade-in">
-        <h3>The simplified execution plan</h3>
-        <img src="images/divide_n_conquer.png" style="border: none;" width=700>
-      </section>
-
-      <!-- Slide 9 -->
-      <section data-transition="fade-out">
-        <h3> Are we done yet ? </h3>
-        <h6 style="color:red">We could reduce the number of joins</h6>
-      </section>
-
-      <section data-transition="fade-out">
-        <h3> It seems we can <span style="color:red">introspect ! </span> </h3>
-        <pre><code class="hljs scala" style="font-size:30px;" data-trim data-noescape>
-            final case class Join[D, E, A](feat1, feat2) 
-              extends FeatureGen[D, E, A]      
-          </code></pre>
-      </section>
-      <section data-transition="fade-out">
-        <h3> It seems we can <span style="color:red">introspect ! </span> </h3>
-        <pre><code class="hljs scala" style="font-size:30px;" data-trim data-noescape>
-            final case class Join[D, E, A](feat1 & feat2, <strike style='color:maroon'>feat2</strike>) 
-              extends FeatureGen[D, E, A]      
-          </code></pre>
-      </section>
-
-      <section data-transition="fade-in">
-        <h3>Grab all <span style="color:red">Feature-Requests</span> of <span style="color:red"> FeatureGen</span> </h3>
-        <pre><code class="hljs scala" style="font-size:30px;" data-noescape>
-      def listOfFeatureRequests(
-        pgm: FeatureGen[A, B]
-      ): FeatureRequests[A, B]= ???
-
-   // We will see a naive first time repr of FeatureRequests
-              </code></pre>
-      </section>
-
-      <section data-transition="fade-in">
-        <h3>To Begin with..</h3>
-      </section>
-
-      <section data-transition="fade-in">
-        <h3> <span style="color: rgba(0, 0, 0, 0.2);"> Remember </span> Wide-Table <span
-            style="color: rgba(0, 0, 0, 0.2);">
-            ? </span></h3>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-noescape data-line-numbers="1000">
-                final case class WideTable[D, Expr](
-                  map: Map[(Input[D], TimeWindow), List[Expr]]
-                ) {
-
-                  def merge(that: WideTable[D, Expr]) = 
-                    WideTable(map |+| that.map)
-                  
-                  val execute: FeatureGen[D, Expr, FeatureRes[D]] =
-                    FeatureGen.combineAllEff(
-                      map.map({ case ((inp, partition), exps) => 
-                        CreateFeatures(FeatureDef(input, exps, partition)) })
-                    )
-                }
-              </code></pre>
-      </section>
-
-      <section data-transition="fade-in">
-        <h3> <span style="color: rgba(0, 0, 0, 0.2);"> Remember </span> Wide-Table <span
-            style="color: rgba(0, 0, 0, 0.2);">
-            ? </span></h3>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-noescape data-line-numbers="1-3">
-                  final case class WideTable[D, Expr](
-                    map: Map[(Input[D], TimeWindow), List[Expr]]
-                  ) {
-  
-                    def merge(that: WideTable[D, Expr]) = 
-                      WideTable(map |+| that.map)
-                      
-                    val execute: FeatureGen[D, Expr, FeatureRes[D]] =
-                      FeatureGen.combineAllEff(
-                        map.map({ case ((inp, partition), exps) => 
-                          CreateFeatures(FeatureDef(input, exps, partition)) })
-                      )
-                  }
-                </code></pre>
-      </section>
-
-      <section data-transition="fade-in">
-        <h3> <span style="color: rgba(0, 0, 0, 0.2);"> Remember </span> Wide-Table <span
-            style="color: rgba(0, 0, 0, 0.2);">
-            ? </span></h3>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-noescape data-line-numbers="5,6">
-                    final case class WideTable[D, Expr](
-                      map: Map[(Input[D], TimeWindow), List[Expr]]
-                    ) {
-    
-                      def merge(that: WideTable[D, Expr]) = 
-                        WideTable(map |+| that.map)
-    
-                      val execute: FeatureGen[D, Expr, FeatureRes[D]] =
-                        FeatureGen.combineAllEff(
-                          map.map({ case ((inp, partition), exps) => 
-                            CreateFeatures(FeatureDef(input, exps, partition)) })
-                        )
-                    }
-                  </code></pre>
-      </section>
-
-
-      <section data-transition="fade-in">
-        <h3> <span style="color: rgba(0, 0, 0, 0.2);"> Remember </span> Wide-Table <span
-            style="color: rgba(0, 0, 0, 0.2);">
-            ? </span></h3>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-noescape data-line-numbers="7-11">
-                      final case class WideTable[D, Expr](
-                        map: Map[(Input[D], TimeWindow), List[Expr]]
-                      ) {
-      
-                        def merge(that: WideTable[D, Expr]) = 
-                          WideTable(map |+| that.map)
-                              
-                        val execute: FeatureGen[D, Expr, FeatureRes[D]] =
-                          FeatureGen.combineAllEff(
-                            map.map({ case ((inp, partition), exps) => 
-                              CreateFeatures(FeatureDef(input, exps, partition)) })
-                          )
-                      }
-                    </code></pre>
-      </section>
-
-      <section data-transition="fade-in">
-        <h3>Feature-Requests</h3>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-noescape data-line-numbers="1000">
-                  
-  final case class FeatureRequests[D, Expr](
-    list: List[WideTable[D, Expr]]
-  ){
-    def ++(that: FeatureRequests[D, Expr]): FeatureRequests[D, Expr] =
-      FeatureRequests(self.list ++ that.list)
-
-    def add(that: FeatureDef[D, Expr]): FeatureRequests[D, Expr] = 
-      FeatureRequests(that.toWideTable :: list)  
-  
-    def merge(that: FeatureRequests[D, Expr]): FeatureRequests[D, Expr] =
-      FeatureRequests((self.list |@| that.list)(_ merge _))
-  }
-  
-                </code></pre>
-      </section>
-
-      <section data-transition="fade-in">
-        <h3>Feature-Requests</h3>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-noescape data-line-numbers="1-2">
-                    
-    final case class FeatureRequests[D, Expr](
-      list: List[WideTable[D, Expr]]
-    ){
-      def ++(that: FeatureRequests[D, Expr]): FeatureRequests[D, Expr] =
-        FeatureRequests(self.list ++ that.list)
-
-      def add(that: FeatureDef[D, Expr]): FeatureRequests[D, Expr] = 
-        FeatureRequests(that.toWideTable :: list)  
-    
-      def merge(that: FeatureRequests[D, Expr]): FeatureRequests[D, Expr] =
-        FeatureRequests((self.list |@| that.list)(_ merge _))
-    }
-    
-                  </code></pre>
-      </section>
-
-
-      <section data-transition="fade-in">
-        <h3>Feature-Requests</h3>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-noescape data-line-numbers="4,5">
-                      
-      final case class FeatureRequests[D, Expr](
-        list: List[WideTable[D, Expr]]
-      ){
-        def ++(that: FeatureRequests[D, Expr]): FeatureRequests[D, Expr] =
-          FeatureRequests(self.list ++ that.list)
-
-        def add(that: FeatureDef[D, Expr]): FeatureRequests[D, Expr] = 
-          FeatureRequests(that.toWideTable :: list)   
-      
-        def merge(that: FeatureRequests[D, Expr]): FeatureRequests[D, Expr] =
-          FeatureRequests((self.list |@| that.list)(_ merge _))
+  <section data-transition="fade-out">
+    <h3>Instance for Mapper for all tuple</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;" data-line-numbers="6,7,8,9,10,11">
+  given  nonEmptyTuple[F[_], A, B, Tail <: Tuple](
+    using C: Case.Aux[A, F[B]], 
+    M: MapperF[F, Tail]
+  )(using MF: Monad[F]): MapperF.Aux[F, A *: Tail, B *: M.Out] = 
+    new MapperF[F, A *: Tail] {
+      type Out = B *: M.Out
+      def apply(a: A *: Tail): F[Out] =
+        MF.flatMap(C.apply(a.head))(bb => MF.map(M.apply(a.tail))(mOut => bb *: mOut))
+   }
+
+   </code></pre>
+  </section>
+
+       <!--Slide-->
+  <section data-transition="fade-out">
+    <h3>Instance for Mapper for all tuple</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+      extension[A <: Tuple](tuple: A) {
+        // Oh well? What defines the MapperF conceptually? 
+        // It is a list of functions (cases).
+        def traverse[F[_]](using M: MapperF[F, A]): F[M.Out] = M.apply(tuple)
       }
-      
-                    </code></pre>
-      </section>
 
-      <section data-transition="fade-in">
-        <h3>Feature-Requests</h3>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-noescape data-line-numbers="7,8">
-                        
-        final case class FeatureRequests[D, Expr](
-          list: List[WideTable[D, Expr]]
-        ){
-          def ++(that: FeatureRequests[D, Expr]): FeatureRequests[D, Expr] =
-            FeatureRequests(self.list ++ that.list)
+   </code></pre>
+  </section>
 
-          def add(that: FeatureDef[D, Expr]): FeatureRequests[D, Expr] = 
-            FeatureRequests(that.toWideTable :: list)  
-        
-          def merge(that: FeatureRequests[D, Expr]): FeatureRequests[D, Expr] =
-            FeatureRequests((self.list |@| that.list)(_ merge _))
-        }
-        
-                      </code></pre>
-      </section>
 
-      <section data-transition="fade-in">
-        <h3>Feature-Requests</h3>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-noescape data-line-numbers="10,11">
-                          
-          final case class FeatureRequests[D, Expr](
-            list: List[WideTable[D, Expr]]
-          ){
-            def ++(that: FeatureRequests[D, Expr]): FeatureRequests[D, Expr] =
-              FeatureRequests(self.list ++ that.list)
+         <!--Slide-->
+  <section data-transition="fade-out">
+    <h3>Bring in phantom type</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+      extension[A <: Tuple](tuple: A) {
+        def traverse[F[_]]: Traverse[F, A] = new Traverse[F, A](tuple)
+      }
+    
+      // Mapper[F[_], A] becomes Mapper[F[_], P, A] and Case[P, A, B]
+      // Define your instances of case in object of type B, and it works
+      class Traverse[F[_], A <: Tuple](tuple: A) {
+        def apply[P](p: P)(using M: MapperF[F, P, A]): F[M.Out] = M.apply(tuple)
+      }
+
+      // Demo (show tests)
+   </code></pre>
+  </section>
+
+  <section data-transition="fade-out">
+    <h3>A sequence revisited</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+      object identity {
+        given id[F[_], A]: Case.Aux[this.type, F[A], F[A]] = 
+          Case.createInstance(i => i)
+      }
   
-            def add(that: FeatureDef[D, Expr]): FeatureRequests[D, Expr] = 
-              FeatureRequests(that.toWideTable :: list)  
-          
-            def merge(that: FeatureRequests[D, Expr]): FeatureRequests[D, Expr] =
-              FeatureRequests((self.list |@| that.list)(_ merge _))
-          }
-          
-                        </code></pre>
-      </section>
+      val tuple: (Option[Int], Option[Double]) = (Some(20), Some(50.1))
+      val result: Option[(Int, Double)] = tuple.traverse(identity)
+      // Demo (show tests)
+   </code></pre>
+  </section>
 
-      <!--Slide 10-->
-      <section data-transition="fade-out">
-        <h3>Get all <span style="color:red">Feature-Requests</span></h3>
+  <section data-transition="fade-out">
+    <h3>A map revisited</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+      type Id[A] = A
 
-        <pre><code class="hljs scala" style="font-size:22px;"data-line-numbers="1000"  data-trim data-noescape>
-                def go[B](
-                  fa: FeatureGen[D, E, B],
-                  requests: FeatureRequests[D, E]
-                ): FeatureRequests[D, E] =
-                  fa match {
-                    case CreateFeatures(featureDef) => requests.add(featureDef)
-                    case JoinFeatures(f1, f2)       => loop(f1, requests).merge(loop(f2, requests))
-                    case Map(f1, _)                 => loop(f1, requests)
-                    case Zip(f1, f2)                => loop(f1, requests) ++ loop(f2, requests)
-                    ..
-                  }
-            
-                go(program, FeatureRequests(Nil)) // given a program FeatureGen[D, Expr]
-              }
-            
-            </code></pre>
-
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Get all <span style="color:red">Feature-Requests</span></h3>
-
-        <pre><code class="hljs scala" style="font-size:22px;"data-line-numbers="2,3,6"  data-trim data-noescape>
-                  def go[B](
-                    fa: FeatureGen[D, E, B],
-                    requests: FeatureRequests[D, E]
-                  ): FeatureRequests[D, E] =
-                    fa match {
-                      case CreateFeatures(featureDef) => requests.add(featureDef)
-                      case JoinFeatures(f1, f2)       => go(f1, requests).merge(loop(f2, requests))
-                      case Map(f1, _)                 => go(f1, requests)
-                      case Zip(f1, f2)                => go(f1, requests) ++ loop(f2, requests)
-                      ..
-                    }
-              
-                  go(program, FeatureRequests(Nil)) // given a program FeatureGen[D, Expr]
-                }
-              
-              </code></pre>
-
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Get all <span style="color:red">Feature-Requests</span></h3>
-
-        <pre><code class="hljs scala" style="font-size:22px;"data-line-numbers="2,3,7"  data-trim data-noescape>
-                  def go[B](
-                    fa: FeatureGen[D, E, B],
-                    requests: FeatureRequests[D, E]
-                  ): FeatureRequests[D, E] =
-                    fa match {
-                      case CreateFeatures(featureDef) => requests.add(featureDef)
-                      case JoinFeatures(f1, f2)       => go(f1, requests).merge(loop(f2, requests))
-                      case Map(f1, _)                 => go(f1, requests)
-                      case Zip(f1, f2)                => go(f1, requests) ++ loop(f2, requests)
-                      ..
-                    }
-              
-                  go(program, FeatureRequests(Nil)) // given a program FeatureGen[D, Expr]
-                }
-              
-              </code></pre>
-
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Get all <span style="color:red">Feature-Requests</span></h3>
-
-        <pre><code class="hljs scala" style="font-size:22px;"data-line-numbers="2,3,8"  data-trim data-noescape>
-                    def go[B](
-                      fa: FeatureGen[D, E, B],
-                      requests: FeatureRequests[D, E]
-                    ): FeatureRequests[D, E] =
-                      fa match {
-                        case CreateFeatures(featureDef) => requests.add(featureDef)
-                        case JoinFeatures(f1, f2)       => go(f1, requests).merge(loop(f2, requests))
-                        case Map(f1, _)                 => go(f1, requests)
-                        case Zip(f1, f2)                => go(f1, requests) ++ loop(f2, requests)
-                        ..
-                      }
-                
-                    go(program, FeatureRequests(Nil)) // given a program FeatureGen[D, Expr]
-                  }
-                
-                </code></pre>
-
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Get all <span style="color:red">Feature-Requests</span></h3>
-
-        <pre><code class="hljs scala" style="font-size:22px;"data-line-numbers="2,3,9"  data-trim data-noescape>
-                      def go[B](
-                        fa: FeatureGen[D, E, B],
-                        requests: FeatureRequests[D, E]
-                      ): FeatureRequests[D, E] =
-                        fa match {
-                          case CreateFeatures(featureDef) => requests.add(featureDef)
-                          case JoinFeatures(f1, f2)       => go(f1, requests).merge(loop(f2, requests))
-                          case Map(f1, _)                 => go(f1, requests)
-                          case Zip(f1, f2)                => go(f1, requests) ++ loop(f2, requests)
-                          ..
-                        }
-                  
-                      go(program, FeatureRequests(Nil)) // given a program FeatureGen[D, Expr]
-                    }
-                  
-                  </code></pre>
-
-      </section>
-
-      <!--Slide 10-->
-      <section data-transition="fade-out">
-        <h3>Convert <span style="color:red">Impl</span> to optimised <span style="color:red">Impl</span></h3>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-noescape>
-                  private def optimiser[D, Expr, A](
-                    list: FeatureRequests[D, Expr]
-                    impl: Impl[D, Expr, A]
-                  ): Impl[D, Expr, A] = ???
-                             
-              </code></pre>
-      </section>
-      <section data-transition="fade-out">
-        <h3>Convert <span style="color:red">Impl</span> to optimised <span style="color:red">Impl</span></h3>
-        <pre><code class="hljs scala" style="font-size:22px;" data-trim data-noescape>
-                    private def optimiser[D, Expr, A](
-                      list: FeatureRequests[D, Expr]
-                      impl: Impl[D, Expr, A]
-                    ): Impl[D, Expr, A] =
-                      ZIO
-                       .collectAll(list.map(wideTable => impl(wideTable.execute)))
-                       .map(preJoined => {
-                         val fn: FeatureGen[D, Expr, A] => AnalyticsTask[D, Expr, A]) = {
-                           case CreateFeatures(df) => lookup(preJoined) <span><button style="font-size: 25px;" class="fragment">// may or may not return features.</button></span>
-                           case JoinFeatures(a, b) => <span><button style="font-size: 25px;" class="fragment">// handle the absence of features on the right side.</button></span> 
-                         }
-                          
-                         fn // The new function implements fa by looking up createdFeatures.
-                       }    
-                </code></pre>
-      </section>
-      <section data-transition="fade-out">
-        <h3>The look up logic </h3>
-        <p style="font-size:22px">(details; <span style="color:red">skip</span> if not interested) </p>
-
-        <pre><code class="hljs scala" style="font-size:23px;" data-trim data-noescape>
-            // type Env = (Ref[List[FeatureResult[D, Expr]]], DataService[D, Expr])
-            case CreateFeatures(input) =>  
-              ZIO.accessM[Env]({ case (state, service) => 
-                state.get.flatMap(
-                  _.get(input.index).flatMap(_.containsFeatures(input.getFeatureNames)) match {
-                  // state that holds the wide tables that are already returned
-                  case Some(_) =>
-                    impl(fail("Wide table is already used."))
-                  case None =>
-                    createdFeatures.get(input.index).flatMap(state.update)
-              )
-                               
-                </code></pre>
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>Join is now interesting</h3>
-        <p style="font-size:22px">Join should handle the absence of features on the right side. </p>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-noescape>
-                          case JoinFeatures(f1, f2) =>
-                            apply(f1).either
-                              .zip(apply(f2).either)
-                              .flatMap({
-                                case (Right(v1), Right(v2)) => impl(join(pure(v1), pure(v2)))
-                                case (Left(_)  , Right(v2)) => impl(pure(v2))
-                                case (Right(v1), Left(_))   => impl(pure(v1))
-                                case (Left(_)  , Left(_))   => impl(fail("Can that really happen?"))
-                              })
-              </code></pre>
-
-      </section>
-      <!-- Slide 16 - code0 -->
-
-      <!-- Slide -->
-
-      <section data-transition="fade-in">
-        <h3> Let's execute again </h3>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-noescape>
-          val fa: FeatureGen[D, Expr, A] = ???
-          val run: Impl[D, Expr, A] = ???
-          val summary = getFeatureRequests(fa)
-
-          val result = optimise(summary, run)(fa).provide(flinkService)
-        </code></pre>
-      </section>
-
-      <section data-transition="fade-in">
-        <video width="900" height="600" controls>
-          <source src="images/reduce_aggregations.mov" type="video/mp4">
-        </video>
-      </section>
-
-      <!-- Slide -->
-      <section data-transition="fade-in">
-        <h3> Simplified.. </h3>
-        <img src="images/reduce_aggregation.png" style="border: none;" width=800>
-      </section>
-
-      <!-- Slide -->
-      <section data-transition="fade-in">
-        <table>
-          <tr>
-            <th align="center">
-              Before
-            </th>
-            <th align="center">
-              After
-            </th>
-          </tr>
-          <tr>
-            <th>
-              <img src="images/divide_n_conquer.png" style="border: none;" width=1000>
-            </th>
-            <th>
-              <img src="images/reduce_aggregation.png" style="border: none;" width=650>
-            </th>
-          </tr>
-        </table>
-      </section>
-
-      <!-- Slide -->
-      <section data-transition="fade-out">
-        <h3> Are we done yet ? </h3>
-        <h6 style="color:red">We could derive features from features</h6>
-        <p style="font-size:25px;color: black;"> Which is otherwise difficult with SQL and data-source languages</p>
-
-      </section>
-
-      <section data-transition="fade-out">
-        <h3> Derive Features from Features </h3>
-        <p style="font-size:25px;color: black;"> Prejoin only non-derivable features</p>
-        <pre><code class="hljs scala" style="font-size:19px;" data-noescape>
-         // We need a new node
-         def project[D, E](
-           res: FeatureRes[D], 
-           features: List[E]
-         ): FeatureGen[D, Expr, FeatureRes[D]] = ???
-
-         // Build a program, that can now take the result of first level FeatureGen.
-         def getFeatureRequests[E](
-           pgm: FeatureGen[D, E]
-         ): (FeatureRequests, FeatureGen[D, E]) = ???
-            </code></pre>
-      </section>
-
-
-      <section data-transition="fade-in">
-        <h3> Execution </h3>
-        <video width="1000" height="600" controls>
-          <source src="images/thbestplan.mov" type="video/mp4">
-        </video>
-      </section>
-
-      <!-- Slide -->
-      <section data-transition="fade-in">
-        <h3> Simplified </h3>
-        <img src="images/thbestplan.png" style="border: none;" width=800>
-      </section>
-
-      <!-- Slide -->
-      <section data-transition="fade-in">
-        <table>
-          <tr>
-            <th align="center">
-              Before
-            </th>
-            <th align="center">
-              After
-            </th>
-          </tr>
-          <tr>
-            <th>
-              <img src="images/worst.png" style="border: none;" width=1000>
-            </th>
-            <th>
-              <img src="images/thbestplan.png" style="border: none;" width=650>
-            </th>
-          </tr>
-        </table>
-      </section>
-
-
-      <section data-transition="fade-out">
-        <h3> Laws </h3>
-        <p style="font-size:30px;color: black;"> Think in terms of abstractions, and let it propogate through to details
-        </p>
-        <pre><code class="hljs scala" style="font-size:25px;" data-trim data-noescape>
-          // Assuming project is a new node, give List[Expr], returns FeatureRes => FeatureRes
-
-          val law = 
-            join(project(d1, feat1), project(d2, feat2) === 
-              project(join(d1, d2), feat1 ++ feat2)
-
-          // and more..  
-          </code></pre>
-        </p>
-
-      </section>
-
-      <section data-transition="fade-out">
-        <h3>What is Going on ? Logs ?</h3>
-        <p style="font-size:30px;color: black;"> A safe AOP style logging </p>
-        <pre><code class="hljs scala" style="font-size:20px;" data-trim data-noescape>
-           val impl: Impl[D, Expr, A] = ??? // existing impl
+      object map {
+        given Case.Aux[this.type, Int, Int] = 
+          Case.createInstance(i => i * i)
   
-           def implWithLogs[A]: Impl[D, Expr, A] = {
-              case a @ CreateFeatures(input) => putStrLn(s"Features: ${input}") *> impl(a)
-              case a @ JoinFeatures(aa, b)   => putStrLn("Joining: ") *> apply(aa) *> apply(b) *> impl(a)
-              case a @ Zip(aa, b)            => putStrLn("Zipping: ") *> apply(aa) *> apply(b) *> impl(a)
-              case a @ Map(aa, _)            => apply(aa) *> impl(a)
-              case a @ Fail(_)               => putStrLn("failed") *> impl(a)
-              case a @ Pure(_)               => impl(a)
-            }
-            </code></pre>
-
-      </section>
-
-      <!-- Slide -->
-      <section data-transition="fade-in">
-        <h3>Backend Agnostic? </h3>
-        <p style="font-size:40px;color: black;"> All of this is <span style="color: red;">proven</span> to be
-          working with <span style="color: red;">Apache Spark</span> too ! </p>
-      </section>
-
-      <section data-transition="fade-in">
-        <h3> And that's how FP met Real World </h3>
-        <p style="font-size:30px;color: black;"> Purely functional </p>
-        <p style="font-size:30px;color: black;"> Scalable, declarative</p>
-        <p style="font-size:30px;color: black;">No time spent on boilerplate</p>
-        <p style="font-size:30px;color: black;"> No implicits</p>
-        <p style="font-size:30px;color: black;"> No macros</p>
-        <p style="font-size:30px;color: black;"> Relatively small piece of code - altogether.
-        </p>
+        given Case.Aux[this.type, Double, Double] = 
+          Case.createInstance(i => i * i)
+      }
+  
+      val tuple: (Int, Double) = (20, 50.1)
+      val result: (Int, Double) = tuple.traverse[Id](map)
+      // Demo (show tests)
+   </code></pre>
+  </section>
 
 
-      </section>
+  <section data-transition="fade-out">
+    <h3>So far we covered</h3>
+    <pre><code class=" hljs sql" style="font-size:25px; align-items: center;"  data-line-numbers="6" data-trim data-noescape>
+      Type matching
+      Singleton types
+      Polymorphic Function Types
+      Type-class derivation using scala3 Tuple
+      Reimplementing some scala3 functions
+      Compile time Mirror
+      Type-class derivation revisited
+      Inline, and transparent
+      Macros
+   </code></pre>
+  </section>
+  
+  
+  <section data-transition="fade-out">
+    <h3>Mirror of Products</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+case class Abc(x: Int, y: String)
+
+implicitly[Mirror{type MirroredType = Abc}]
+
+Mirror.Product {
+  MirroredType = Abc
+  MirroedMonoType = Abc
+  MirroredLabel = "ISB"
+  MirroredElemTypes = (Int, String)
+  MirroedElemLabels = ("x", "y")
+
+}
+   </code></pre>
+  </section>
+
+  <section data-transition="fade-out">
+    <h3>Mirror of Coproducts</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+
+sealed trait Option[+A]
+case class Some[A](value: A) extends Option[A]
+case object None extends Option[Nothing]
+
+   </code></pre>
+  </section>
+  
+
+  <section data-transition="fade-out">
+    <h3>Mirror of Coproducts</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+implicitly[Mirror {type MirroredType = Option}]
+
+Mirror.Product {
+    MirroredType = Option
+    MirroredMonoType = Option[_]
+    MirroedLabel = "Option"
+    MirroredElemTypes = [+T] =>> (Sm[T], None.type)
+    MirroredElemLabels = ("Some", "None")
+}
+   </code></pre>
+  </section>
+
+  <section data-transition="fade-out">
+    <h3>Mirror of Coproducts</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+implicitly[Mirror {type MirroredType = Sm}]
+
+Mirror.Product {
+    MirroredType = Sm
+    MirroredMonoType = Sm[_]
+    MirroedLabel = "Sm"
+    MirroredElemTypes = [+T] =>> Tuple1[T]
+    MirroredElemLabels = Tuple1["value"]
+}
+
+   </code></pre>
+  </section>
+
+  <section data-transition="fade-out">
+    <h3>Mirror of Coproducts</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+implicitly[Mirror {type MirroredType = Sm}]
+
+Mirror.Product {
+    MirroredType = Sm
+    MirroredMonoType = Sm[_]
+    MirroedLabel = "Sm"
+    MirroredElemTypes = [+T] =>> Tuple1[T]
+    MirroredElemLabels = Tuple1["value"]
+}
+
+   </code></pre>
+  </section>
+
+
+  <section data-transition="fade-out">
+    <h3>Ok? So?...</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+// So, our `Generic` can be as simple as a type alias to Mirror
+
+type ProductGeneric[T] {
+  type Repr = MirroredElemTypes
+  def toRepr(t: T): Repr
+  def fromRepr(r: Repr): T
+}
+   </code></pre>
+  </section>
+
+  <section data-transition="fade-out">
+    <h3>Coproduct Generic</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+type CoproductGeneric[T] {
+  type Repr = ToUnion[MirroredElemeTypes] // type matching
+  def toRepr(t: T): Repr 
+  def fromRepr(r: Repr): T 
+}
+   </code></pre>
+</section>
+
+  <!-- Slide -->
+  <section data-transition="fade-out">
+    <h3>So far we covered</h3>
+    <pre><code class=" hljs sql" style="font-size:25px; align-items: center;"  data-line-numbers="7" data-trim data-noescape>
+      Type matching
+      Singleton types
+      Polymorphic Function Types
+      Type-class derivation using scala3 Tuple
+      Reimplementing some scala3 functions
+      Compile time Mirror
+      Type-class derivation revisited
+      Inline, and transparent
+      Macros
+   </code></pre>
+  </section>   
+
+<section data-transition="fade-out">
+  <h3>Here is a more closer-to-scala3 approach</h3>
+  <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+    // That works?
+    case class Abc(x: Int, y: Int) derives Show
+
+    object Show {
+      def derived[T](m: Mirror[T]): Show[T] = ???
+    }
+ </code></pre>
+</section>
+
+<section data-transition="fade-out">
+  <h3>Under the hood, the compiler does this:</h3>
+  <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+    // Caching the implicit instance +
+
+    object Abc extends Mirror.Product {
+      implicit val derivedShow: Show = Show.derived(Abc)
+    }
+
+ </code></pre>
+</section>
+
+  <!-- Slide -->
+  <section data-transition="fade-out">
+    <h3>So far we covered</h3>
+    <pre><code class=" hljs sql" style="font-size:25px; align-items: center;"  data-line-numbers="8" data-trim data-noescape>
+      Type matching
+      Singleton types
+      Polymorphic Function Types
+      Type-class derivation using scala3 Tuple
+      Reimplementing some scala3 functions
+      Compile time Mirror
+      Type-class derivation revisited
+      Inline, and transparent
+      Macros
+   </code></pre>
+  </section>  
+   
+  <section data-transition="fade-out">
+    <h3>Anything after inline, is inlined</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+      // If not, inline invoking is through a generated `getter` in parent object
+
+      val LoggingEnabled = true
+
+      // If not inline, `by-name` parameter allocation
+      def log(line: => String) = 
+        if (LoggingEnabled) println(line)
+  
+   </code></pre>
+  </section>
+
+  <section data-transition="fade-out">
+    <h3>Inline is inlined</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+      // If not, inline invoking is through a generated `getter` in parent object
+
+      inline val LoggingEnabled = true
+
+      // If not inline, `by-name` parameter allocation
+      def log(line: => String) = 
+        if (true) println(line)
+  
+   </code></pre>
+  </section>
+
+
+  <section data-transition="fade-out">
+    <h3>Inline is inlined</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+      // If not, inline invoking is through a generated `getter` in parent object
+
+      inline val LoggingEnabled = true
+
+      // scala compiler can optimise it to just
+      def log(line: => String) = 
+       println(line)
+  
+   </code></pre>
+  </section>
+
+
+  <section data-transition="fade-out">
+    <h3>Inline it further</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+      // If not, inline invoking is through a generated `getter` in parent object
+
+      inline val LoggingEnabled = true
+
+      // scala compiler can optimise it to just
+      inline def log(line: => String) = 
+       println(line)
+
+     // Equivalent to println(line)  
+  
+   </code></pre>
+  </section>
+
+
+
+  <section data-transition="fade-out">
+    <h3>Inline recursive</h3>
+    <pre><code class=" hljs scala" style="font-size:25px; align-items: center;">
+      inline def pow(num: Float, exp: Int): Float = 
+      if(exp == 0) 1.0F else num * pow(num, exp - 1)
+     
+     pow(10.5F, 3) // Large amount of code thats known at compile time.
+     
+     pow(10.5F, 100) // Too much of code generation - that's going to bring a compile time error 
+  
+   </code></pre>
+  </section>
+
 
       <section data-transition="fade-in">
         <h3>Thank you all</h3>
